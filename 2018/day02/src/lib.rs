@@ -8,6 +8,8 @@ pub enum Error {
     Io(io::Error, String),
     NonAscii(char),
     NonAlpha(char),
+    LengthMisatch(String, String),
+    NoMatch,
 }
 
 pub type Result<T> = result::Result<T, Error>;
@@ -18,6 +20,15 @@ impl fmt::Display for Error {
             Error::Io(e, s) => write!(f, "{}: {}", s, e),
             Error::NonAscii(c) => write!(f, "char `{}' is not ASCII", c),
             Error::NonAlpha(c) => write!(f, "char `{}' is not alphabetical", c),
+            Error::LengthMisatch(a, b) => write!(
+                f,
+                "IDs `{}' and `{}' have differing lengths ({} and {})",
+                a,
+                b,
+                a.len(),
+                b.len()
+            ),
+            Error::NoMatch => write!(f, "no match found"),
         }
     }
 }
