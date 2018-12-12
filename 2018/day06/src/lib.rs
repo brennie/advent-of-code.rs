@@ -30,17 +30,17 @@ pub type Result<T> = result::Result<T, Error>;
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Point {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
 }
 
 impl Point {
-    pub fn new(x: u32, y: u32) -> Self {
+    pub fn new(x: i32, y: i32) -> Self {
         Point { x, y }
     }
 
     pub fn distance_to(&self, other: &Point) -> u32 {
-        ((self.y as i64 - other.y as i64).abs() + (self.x as i64 - other.x as i64).abs()) as u32
+        ((self.y - other.y).abs() + (self.x - other.x).abs()) as u32
     }
 }
 
@@ -109,7 +109,7 @@ mod parser {
                 .map(|digits| digits.into_iter().fold(0, |acc, i| acc * 10 + i))
         };
 
-        (number().skip(string(", ")), number()).map(|(x, y)| Point::new(x, y))
+        (number().skip(string(", ")), number()).map(|(x, y)| Point::new(x as i32, y as i32))
     }
 
     pub fn points<I>() -> impl Parser<Input = I, Output = Vec<Point>>

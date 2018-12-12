@@ -20,10 +20,10 @@ fn find_area(points: Vec<Point>) -> u32 {
         .iter()
         .map(|Point { x, y }| (*x as usize, *y as usize))
         .fold((0, 0), |(max_w, max_h), (x, y)| {
-            (max(max_w, x), max(max_h, y))
+            (max(max_w, x + 1), max(max_h, y + 1))
         });
 
-    let mut grid = vec![vec![None; width + 1]; height + 1];
+    let mut grid = vec![vec![None; width]; height];
 
     for (i, point) in points.iter().enumerate() {
         grid[point.y as usize][point.x as usize] = Some(i);
@@ -32,7 +32,7 @@ fn find_area(points: Vec<Point>) -> u32 {
     for y in 0..height {
         for x in 0..width {
             if grid[y][x].is_none() {
-                grid[y][x] = nearest_to(&Point::new(x as u32, y as u32), &points);
+                grid[y][x] = nearest_to(&Point::new(x as i32, y as i32), &points);
             }
         }
     }
