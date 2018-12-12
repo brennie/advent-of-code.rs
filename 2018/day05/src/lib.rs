@@ -10,18 +10,22 @@ pub enum Polarity {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Unit(char);
+pub struct Unit {
+    pub value: char,
+    pub polarity: Polarity,
+}
 
 impl Unit {
-    pub fn polarity(&self) -> Polarity {
-        match self.0.is_ascii_uppercase() {
-            true => Polarity::Positive,
-            false => Polarity::Negative,
-        }
-    }
+    fn new(c: char) -> Self {
+        assert!(c.is_ascii());
 
-    pub fn value(&self) -> char {
-        self.0.to_ascii_lowercase()
+        Unit {
+            value: c.to_ascii_lowercase(),
+            polarity: match c.is_ascii_uppercase() {
+                true => Polarity::Positive,
+                false => Polarity::Negative,
+            },
+        }
     }
 }
 
@@ -67,7 +71,7 @@ pub fn read_input() -> Result<Vec<Unit>> {
         match c {
             '\n' => continue,
             c if !c.is_ascii() => return Err(Error::InvalidUnit(c)),
-            c => units.push(Unit(c)),
+            c => units.push(Unit::new(c)),
         }
     }
 
@@ -83,7 +87,7 @@ pub fn react_polymer(units: &[Unit]) -> Vec<Unit> {
         if len > 0 {
             let last = &result[len - 1];
 
-            if last.value() == unit.value() && last.polarity() != unit.polarity() {
+            if last.value == unit.value && last.polarity != unit.polarity {
                 result.pop();
                 continue;
             }
