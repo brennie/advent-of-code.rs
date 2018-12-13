@@ -1,0 +1,16 @@
+[package]
+name = "day09"
+version = "0.1.0"
+authors = ["Barret Rennie <barret@brennie.ca>"]
+edition = "2018"
+
+[lib]
+name = "day09"
+path = "src/lib.rs"
+
+[[bin]]
+name = "part1"
+path = "src/part1.rs"
+
+[dependencies]
+structopt = "0.2.14"
