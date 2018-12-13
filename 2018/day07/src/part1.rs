@@ -16,11 +16,7 @@ fn main() {
 fn toposort(mut g: Graph) -> Vec<Vertex> {
     let mut result = Vec::with_capacity(g.0.len());
 
-    let mut open =
-        g.0.iter()
-            .map(|(v, _)| *v)
-            .filter(|v| g.incoming(*v).map(|_| 1).fold(0, Add::add) == 0)
-            .collect::<Vec<Vertex>>();
+    let mut open = g.roots();
 
     while open.len() > 0 {
         let (idx, vertex) = open
@@ -29,15 +25,9 @@ fn toposort(mut g: Graph) -> Vec<Vertex> {
             .min_by_key(|(_, v)| *v)
             .map(|(i, &v)| (i, v))
             .unwrap();
+
         open.remove(idx);
-
-        let outgoing = g.0.remove(&vertex).unwrap();
-
-        for target in outgoing {
-            if g.incoming(target).map(|_| 1).fold(0, Add::add) == 0 {
-                open.push(target);
-            }
-        }
+        open.extend(g.remove(&vertex).into_iter());
 
         result.push(vertex);
     }

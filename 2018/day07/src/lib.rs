@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs::File;
 use std::io::{self, prelude::*};
+use std::ops::Add;
 use std::result;
 
 use combine::stream::state::State;
@@ -34,8 +35,8 @@ pub struct Vertex(pub char);
 
 #[derive(Clone, Copy, Debug)]
 pub struct Edge {
-    from: Vertex,
-    to: Vertex,
+    pub from: Vertex,
+    pub to: Vertex,
 }
 
 #[derive(Debug)]
@@ -65,6 +66,25 @@ impl Graph {
                 None
             }
         })
+    }
+
+    pub fn roots(&self) -> Vec<Vertex> {
+        self.0
+            .iter()
+            .map(|(v, _)| *v)
+            .filter(|v| self.incoming(*v).map(|_| 1).fold(0, Add::add) == 0)
+            .collect::<Vec<Vertex>>()
+    }
+
+    pub fn remove(&mut self, v: &Vertex) -> Vec<Vertex> {
+        assert!(self.0.contains_key(v));
+
+        let outgoing = self.0.remove(v).unwrap();
+
+        outgoing
+            .into_iter()
+            .filter(|&target| self.incoming(target).map(|_| 1).fold(0, Add::add) == 0)
+            .collect()
     }
 }
 
