@@ -1,6 +1,5 @@
 use std::collections::LinkedList;
 use std::mem;
-use std::ops::Rem;
 
 use structopt::StructOpt;
 
