@@ -1,0 +1,17 @@
+[package]
+name = "day10"
+version = "0.1.0"
+authors = ["Barret Rennie <barret@brennie.ca>"]
+edition = "2018"
+
+[lib]
+name = "day10"
+path = "src/lib.rs"
+
+[[bin]]
+name = "day10"
+path = "src/main.rs"
+
+[dependencies]
+combine = "3.6.3"
+failure = "0.1.3"
