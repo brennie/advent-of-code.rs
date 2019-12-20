@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     {
-        let mut open = BinaryHeap::new();
+        let mut open = VecDeque::new();
         let mut closed = HashSet::new();
 
         let start_state = State {
@@ -56,10 +56,10 @@ fn main() -> Result<(), Box<dyn Error>> {
             cost: 0,
         };
 
-        open.push(start_state);
-        closed.insert(start_state);
+        open.push_back(start_state);
+        closed.insert((start_state.point, start_state.depth));
 
-        while let Some(state) = open.pop() {
+        while let Some(state) = open.pop_front() {
             if state.depth == 0 && state.point == end {
                 println!("part 2: {}", state.cost);
                 break;
@@ -92,9 +92,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 };
 
                 if let Some(next_state) = next_state {
-                    if !closed.contains(&next_state) {
-                        open.push(next_state);
-                        closed.insert(next_state);
+                    if !closed.contains(&(next_state.point, next_state.depth)) {
+                        open.push_back(next_state);
+                        closed.insert((next_state.point, next_state.depth));
                     }
                 }
             }
