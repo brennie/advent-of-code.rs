@@ -1,7 +1,7 @@
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
-use std::collections::{HashMap, HashSet};
 use std::io::BufReader;
 
 const YOU: &str = "YOU";
@@ -10,10 +10,9 @@ const SAN: &str = "SAN";
 pub type Dag = HashMap<String, String>;
 
 fn read_input() -> Result<Dag, Box<dyn Error>> {
-    let mut reader = BufReader::new(File::open("input")?);
-
     let mut result = HashMap::new();
 
+    let reader = BufReader::new(File::open("input")?);
     for line in reader.lines() {
         let line = line?;
 
@@ -21,22 +20,12 @@ fn read_input() -> Result<Dag, Box<dyn Error>> {
             continue;
         }
 
-        let mut parts = line.split(")").collect::<Vec<_>>();
+        let parts = line.split(")").collect::<Vec<_>>();
         assert_eq!(parts.len(), 2);
         result.insert(parts[1].into(), parts[0].into());
     }
 
     Ok(result)
-}
-
-fn to_tree(orbits: &[Orbit]) -> Dag {
-    let mut tree = HashMap::<String, String>::new();
-
-    for orbit in orbits {
-        tree.insert(orbit.orbiter.clone(), orbit.orbitee.clone());
-    }
-
-    tree
 }
 
 fn walk_tree(tree: &Dag) -> usize {
@@ -104,7 +93,6 @@ fn find_path(tree: &Dag, start: &str, dest: &str) -> Option<usize> {
 
     None
 }
-
 
 fn main() -> Result<(), Box<dyn Error>> {
     let orbits = read_input()?;
