@@ -1,11 +1,9 @@
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::ops::{Index, IndexMut};
-
-use itertools::Itertools;
 
 fn main() -> Result<(), Box<dyn Error>> {
     let input = read_input()?;
@@ -214,7 +212,7 @@ impl HyperState {
             .map(|q| (level, q))
             .collect();
 
-        // An edge tile.
+        // An tile adjacent to the outer space.
         if p.y == 0 || p.y == 4 || p.x == 0 || p.x == 4 {
             if p.y == 0 {
                 ns.push((level - 1, Point { x: 2, y: 1 }));
@@ -229,7 +227,7 @@ impl HyperState {
             }
         }
 
-        // Surrounding inner
+        // A tile adjacent to the inner space.
         if ((p.y == 1 || p.y == 3) && p.x == 2) || ((p.x == 1 || p.x == 3) && p.y == 2) {
             match p {
                 Point { x: 2, y: 1 } => {
@@ -258,23 +256,6 @@ impl HyperState {
         ns
     }
 }
-
-// fn test() {
-//     let st = [
-//         [false, false, false, false, true],
-//         [true, false, false, true, false],
-//         [true, false, false, true, true],
-//         [false, false, true, false, false],
-//         [true, false, false, false, false],
-//     ];
-
-//     let mut hyp = HyperState::new(State(st));
-//     hyp = hyp.next();
-
-//     println!("{:#?}", hyp.0);
-
-//     assert_eq!(true, false);
-// }
 
 #[cfg(test)]
 mod test {
