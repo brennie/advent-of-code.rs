@@ -12,6 +12,10 @@ path = "src/lib.rs"
 name = "part1"
 path = "src/part1.rs"
 
+[[bin]]
+name = "part2"
+path = "src/part2.rs"
+
 [dependencies]
 combine = "3.6.3"
 failure = "0.1.3"
