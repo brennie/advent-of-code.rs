@@ -1,5 +1,5 @@
 [package]
-name = "day03"
+name = "day03-2018"
 version = "0.1.0"
 authors = ["Barret Rennie <barret@brennie.ca>"]
 edition = "2018"
@@ -8,11 +8,11 @@ edition = "2018"
 path = "src/lib.rs"
 
 [[bin]]
-name = "part1"
+name = "day03-2018-part1"
 path = "src/part1.rs"
 
 [[bin]]
-name = "part2"
+name = "day03-2018-part2"
 path = "src/part2.rs"
 
 [dependencies]
