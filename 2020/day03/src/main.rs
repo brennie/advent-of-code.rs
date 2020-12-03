@@ -26,18 +26,11 @@ fn read_input() -> Result<Map> {
 }
 
 fn trees_for_slope(map: &Map, dx: usize, dy: usize) -> usize {
-    let mut x = 0;
-    let mut y = 0;
-    let mut count = 0;
-
-    while y + 1 < map.0.len() {
-        x = (x + dx) % map.0[0].len();
-        y = y + dy;
-
-        count += map.0[y][x] as usize;
-    }
-
-    return count;
+    (0..)
+        .map(|i| (i * dy, (i * dx) % map.0[0].len()))
+        .take_while(|(y, _)| *y < map.0.len())
+        .map(|(y, x)| map.0[y][x] as usize)
+        .sum()
 }
 
 fn part1(map: &Map) -> usize {
