@@ -23,9 +23,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                     let mut buf = String::new();
                     stdin.read_line(&mut buf)?;
 
-                    for c in buf.chars() {
+                    for c in buf.trim_end().chars() {
                         vm.with_input(c as u8 as isize);
                     }
+                    vm.with_input(b'\n' as isize);
                 }
                 RunResult::Output(c) => {
                     if 0 < c && c < 255 {
