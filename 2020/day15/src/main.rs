@@ -20,33 +20,37 @@ fn main() -> Result<()> {
 }
 
 fn run(input: &[usize], target: usize) -> usize {
-    let mut sequence = Vec::from(input);
-    let mut last_spoken = sequence
+    // Keep track of terms said previously, *except* when that term is the most
+    // recent. Since we always know the most recent term is at index `i - 1`,
+    // we only need to store a single entry for each number to know when it was
+    // previously said.
+    //
+    // If we stored the *all* entries here (including `most_recent =
+    // input[input.len() - 1]`) and `most_recent` appeared previously in the
+    // input (i.e., before `input.len() - 1`) we would get an incorrect result
+    // due to not knowing the previous time that it was said.
+    let mut last_spoken = input
         .iter()
+        .take(input.len() - 1)
         .enumerate()
-        .map(|(i, v)| (*v, vec![i]))
-        .collect::<HashMap<usize, Vec<usize>>>();
+        .map(|(i, v)| (*v, i))
+        .collect::<HashMap<usize, usize>>();
 
-    for i in sequence.len()..target {
-        let most_recent = sequence[i - 1];
+    let mut most_recent = input[input.len() - 1];
+    for i in input.len()..target {
+        most_recent = match last_spoken.entry(most_recent) {
+            Entry::Occupied(mut e) => {
+                let next = i - 1 - e.get();
+                *e.get_mut() = i - 1;
 
-        let occurrences = last_spoken.get(&most_recent).unwrap();
-        assert!(occurrences.len() >= 1);
-        let next = if occurrences.len() == 1 {
-            0
-        } else {
-            let j = occurrences[occurrences.len() - 1];
-            let k = occurrences[occurrences.len() - 2];
+                next
+            }
 
-            j - k
+            Entry::Vacant(e) => {
+                e.insert(i - 1);
+                0
+            }
         };
-
-        sequence.push(next);
-        last_spoken
-            .entry(next)
-            .and_modify(|v| v.push(i))
-            .or_insert_with(|| vec![i]);
     }
-
-    sequence[target - 1]
+    most_recent
 }
