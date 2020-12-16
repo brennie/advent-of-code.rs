@@ -1,4 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::ops::RangeInclusive;
@@ -158,7 +159,7 @@ fn part1(ruleset: &RuleSet, _ticket: &Ticket, nearby_tickets: &[Ticket]) -> usiz
 }
 
 fn part2(ruleset: &RuleSet, ticket: &Ticket, nearby_tickets: &[Ticket]) -> usize {
-    let valid_tickets = nearby_tickets
+    let nearby_tickets = nearby_tickets
         .iter()
         .filter(|t| t.valid(ruleset))
         .cloned()
@@ -170,95 +171,51 @@ fn part2(ruleset: &RuleSet, ticket: &Ticket, nearby_tickets: &[Ticket]) -> usize
         fields
     };
 
-    let mut solution = Vec::<&str>::new();
-    let mut i = 0;
+    let domains: Vec<Vec<&str>> = (0..ticket.0.len())
+        .map(|i| {
+            fields
+                .iter()
+                .filter_map(|field| {
+                    let rule = ruleset.get(field).unwrap();
+                    for ticket in &nearby_tickets {
+                        if !rule.valid(ticket.0[i]) {
+                            return None;
+                        }
+                    }
+                    Some(field.as_str())
+                })
+                .collect()
+        })
+        .collect();
 
-    let mut invalid_assignments = HashMap::<String, HashSet<usize>>::new();
-    while i < fields.len() {
-        let mut backtrack = false;
-        if solution.len() == i {
-            // We have reached a previously un-assigned field.
-            solution.push(&fields[0]);
-        } else {
-            // We are re-assigning a field that failed.
-            let j = fields.iter().position(|f| f == solution[i]).unwrap() + 1;
+    let most_constrained: Vec<usize> = {
+        let mut indices = (0..ticket.0.len()).collect::<Vec<_>>();
+        indices.sort_by_key(|idx| domains[*idx].len());
+        indices
+    };
 
-            if j >= fields.len() {
-                // We have eliminated all possible assignments for this index,
-                // so we must backtrack to a previous assignment.
-                solution.pop().unwrap();
-                backtrack = true;
+    let mut assignment = HashMap::<&str, usize>::new();
 
-                if i == 0 {
-                    panic!();
-                } else {
-                    i -= 1;
+    for i in &most_constrained {
+        for field in domains[*i].iter() {
+            match assignment.entry(field) {
+                Entry::Occupied(..) => continue,
+                Entry::Vacant(e) => {
+                    e.insert(*i);
+                    break;
                 }
+            }
+        }
+    }
+
+    assignment
+        .iter()
+        .filter_map(|(field, index)| {
+            if field.starts_with("departure") {
+                Some(ticket.0[*index])
             } else {
-                solution[i] = &fields[j];
+                None
             }
-        }
-
-        if !backtrack && check(ruleset, &valid_tickets, &solution, &mut invalid_assignments) {
-            i += 1;
-        }
-    }
-
-    println!("{:?}", solution);
-
-    let mut product = 1;
-    for (i, field) in solution.iter().enumerate() {
-        if !field.starts_with("departure") {
-            continue;
-        }
-
-        product *= ticket.0[i];
-    }
-
-    product
-}
-
-fn check(
-    ruleset: &RuleSet,
-    tickets: &[Ticket],
-    solution: &[&str],
-    invalid_assignments: &mut HashMap<String, HashSet<usize>>,
-) -> bool {
-    for (i, a) in solution.iter().enumerate() {
-        for (j, b) in solution.iter().enumerate() {
-            if i == j {
-                continue;
-            }
-
-            if a == b {
-                return false;
-            }
-        }
-    }
-
-    // We only need to check the last field!
-    let i = solution.len() - 1;
-    let field = solution[i];
-
-    if let Some(invalid) = invalid_assignments.get(field) {
-        if invalid.contains(&i) {
-            return false;
-        }
-    }
-
-    let rule = ruleset.get(&*field).unwrap();
-    for ticket in tickets {
-        let value = ticket.0[i];
-
-        if !rule.valid(value) {
-            invalid_assignments
-                .entry(String::from(field))
-                .or_default()
-                .insert(i);
-
-            return false;
-        }
-    }
-
-    true
+        })
+        .product()
 }
