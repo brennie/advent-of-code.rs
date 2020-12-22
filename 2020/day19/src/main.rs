@@ -1,61 +1,97 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 
 use anyhow::Result;
 use combine::parser::char::{char, digit, space};
-use combine::parser::choice::{choice, optional};
-use combine::parser::combinator::{attempt, no_partial};
+use combine::parser::choice::optional;
+use combine::parser::combinator::attempt;
 use combine::parser::range::{range, recognize};
 use combine::parser::repeat::skip_many1;
-use combine::parser::token::{any, value};
+use combine::parser::token::any;
 use combine::{ParseError, Parser, RangeStream};
-
-type Rules = HashMap<usize, Production>;
+use itertools::Itertools;
+use regex::{Regex, RegexBuilder};
 
 fn main() -> Result<()> {
     let (rules, messages) = parse_input()?;
 
-    println!("part 1: {}", count_matches(&rules, &messages));
+    {
+        let mut rules = rules.clone();
+        let production = collapse(&mut rules);
+        let re = to_regex(&production);
+
+        let count = messages.iter().filter(|line| re.is_match(line)).count();
+
+        println!("part 1: {}", count);
+    }
 
     {
-        let rules = {
-            let mut rules = rules.clone();
-            rules.insert(8, Production::Plus(42));
+        let max_len = messages.iter().map(String::len).max().unwrap();
+        let mut rules = rules.clone();
+        rules.insert(8, plus(&Production::Ref(42), max_len));
+        rules.insert(
+            11,
+            balanced(&Production::Ref(42), &Production::Ref(31), max_len / 2),
+        );
 
-            let max_len = messages.iter().map(String::len).max().unwrap();
-            let mut balanced = vec![];
-            for i in 1..=max_len / 2 {
-                let mut rule = vec![];
-                for _ in 0..i {
-                    rule.push(42);
-                }
+        let production = collapse(&mut rules);
+        let re = to_regex(&production);
 
-                for _ in 0..i {
-                    rule.push(31);
-                }
-                balanced.push(Production::SeqN(rule));
-            }
+        let count = messages.iter().filter(|line| re.is_match(line)).count();
 
-            rules.insert(11, Production::OrN(balanced));
-            rules
-        };
-
-        println!("part 2: {}", count_matches(&rules, &messages));
+        println!("part 2: {}", count);
     }
 
     Ok(())
 }
 
-fn count_matches(rules: &Rules, messages: &[String]) -> usize {
-    let mut parser = parser_for_rule(&rules[&0], &rules);
-    messages
-        .iter()
-        .filter(|msg| match parser.parse(msg.as_str()) {
-            Ok((_, "")) => true,
-            _ => false,
-        })
-        .count()
+/// Generate a production of the form `p+` up to a max length of `max_depth`.
+fn plus(p: &Production, max_depth: usize) -> Production {
+    let mut combinations = Vec::with_capacity(max_depth);
+
+    combinations.push(p.clone());
+
+    for i in 1..max_depth {
+        let mut seq = Vec::with_capacity(i);
+        for _ in 0..i {
+            seq.push(p.clone());
+        }
+        combinations.push(Production::Seq(seq));
+    }
+
+    Production::Or(combinations)
+}
+
+/// Generate a production of the form (pq|ppqq|pppqqq|...) up to a max length of `max_depth * 2`.
+fn balanced(p: &Production, q: &Production, max_depth: usize) -> Production {
+    let mut combinations = Vec::with_capacity(max_depth);
+
+    for i in 1..=max_depth {
+        let mut seq = Vec::with_capacity(i * 2);
+
+        for _ in 0..i {
+            seq.push(p.clone());
+        }
+
+        for _ in 0..i {
+            seq.push(q.clone());
+        }
+
+        combinations.push(Production::Seq(seq));
+    }
+
+    Production::Or(combinations)
+}
+
+type Rules = HashMap<usize, Production>;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
+enum Production {
+    Char(char),
+    Ref(usize),
+    Or(Vec<Production>),
+    Seq(Vec<Production>),
 }
 
 fn parse_input() -> anyhow::Result<(Rules, Vec<String>)> {
@@ -92,17 +128,6 @@ fn parse_input() -> anyhow::Result<(Rules, Vec<String>)> {
     Ok((rules, messages))
 }
 
-#[derive(Clone)]
-enum Production {
-    Char(char),
-    Ref(usize),
-    Seq(usize, usize),
-    SeqN(Vec<usize>),
-    Plus(usize),
-    Or(Box<Production>, Box<Production>),
-    OrN(Vec<Production>),
-}
-
 fn rule<'a, I>() -> impl Parser<I, Output = (usize, Production)> + 'a
 where
     I: RangeStream<Token = char, Range = &'a str> + 'a,
@@ -113,14 +138,14 @@ where
 
     let ref_seq = || {
         (number(), optional(attempt(space().with(number())))).map(|(a, b)| match (a, b) {
-            (a, Some(b)) => Production::Seq(a, b),
+            (a, Some(b)) => Production::Seq(vec![Production::Ref(a), Production::Ref(b)]),
             (a, None) => Production::Ref(a),
         })
     };
 
     let ref_seq_or =
         (ref_seq(), optional(range(" | ").with(ref_seq()))).map(|(a, b)| match (a, b) {
-            (a, Some(b)) => Production::Or(Box::new(a), Box::new(b)),
+            (a, Some(b)) => Production::Or(vec![a, b]),
             (a, None) => a,
         });
 
@@ -129,49 +154,143 @@ where
     (number().skip(range(": ")), rule())
 }
 
-fn parser_for_rule<'a, I>(
-    rule: &Production,
-    rules: &Rules,
-) -> Box<dyn Parser<I, Output = (), PartialState = ()> + 'a>
-where
-    I: RangeStream<Token = char, Range = &'a str> + 'a,
-    I::Error: ParseError<I::Token, I::Range, I::Position>,
-{
-    match rule {
-        Production::Char(c) => Box::new(no_partial(char(*c).with(value(())))),
-        Production::Ref(r) => Box::new(no_partial(parser_for_rule(&rules[r], rules))),
-        Production::Seq(r1, r2) => Box::new(no_partial(
-            attempt((
-                parser_for_rule(&rules[r1], rules),
-                parser_for_rule(&rules[r2], rules),
-            ))
-            .with(value(())),
-        )),
-        Production::SeqN(ps) => ps
-            .iter()
-            .map(|r| parser_for_rule(&rules[&r], rules))
-            .fold(Box::new(value(())), |parser, rule| {
-                Box::new(no_partial(parser.skip(rule)))
-            }),
-        Production::Plus(r) => Box::new(no_partial(
-            skip_many1(attempt(parser_for_rule(&rules[r], rules))).with(value(())),
-        )),
-        Production::Or(p1, p2) => Box::new(no_partial(
-            Parser::or(
-                attempt(parser_for_rule(&p1, rules)),
-                attempt(parser_for_rule(&p2, rules)),
-            )
-            .with(value(())),
-        )),
-        Production::OrN(ps) => {
-            let mut parsers = ps
-                .iter()
-                .map(|p| Box::new(no_partial(attempt(parser_for_rule(p, rules)))));
-            let first = parsers.next().unwrap();
+fn reverse(rules: &Rules) -> HashMap<usize, HashSet<usize>> {
+    let mut reverse: HashMap<usize, HashSet<usize>> = HashMap::new();
+    for (id, production) in rules {
+        foreach_production(production, &mut |p| {
+            if let Production::Ref(n) = p {
+                reverse.entry(*n).or_default().insert(*id);
+            }
+        });
+    }
 
-            parsers.fold(first, |parser, rule| {
-                Box::new(no_partial(attempt(parser.or(rule)).with(value(()))))
-            })
+    reverse
+}
+
+fn foreach_production<F>(production: &Production, f: &mut F)
+where
+    F: FnMut(&Production),
+{
+    f(production);
+
+    match production {
+        Production::Char(..) => {}
+        Production::Ref(..) => {}
+        Production::Or(ref ps) => {
+            for p in ps {
+                foreach_production(p, f);
+            }
+        }
+        Production::Seq(ref ps) => {
+            for p in ps {
+                foreach_production(p, f);
+            }
+        }
+    }
+}
+
+fn foreach_production_mut<F>(production: &mut Production, f: &mut F)
+where
+    F: FnMut(&mut Production),
+{
+    f(production);
+
+    match production {
+        Production::Char(..) => {}
+        Production::Ref(..) => {}
+        Production::Or(ref mut ps) => {
+            for p in ps.iter_mut() {
+                foreach_production_mut(p, f);
+            }
+        }
+        Production::Seq(ref mut ps) => {
+            for p in ps.iter_mut() {
+                foreach_production_mut(p, f);
+            }
+        }
+    }
+}
+
+fn collapse(rules: &mut Rules) -> Production {
+    let reverse = reverse(rules);
+
+    let mut open: VecDeque<usize> = VecDeque::new();
+
+    // Find rules that are `-> Char` productions only.
+    for (id, production) in rules.iter() {
+        if let Production::Char(c) = production {
+            open.push_back(*id);
+        }
+    }
+
+    while let Some(id) = open.pop_front() {
+        if id == 0 {
+            break;
+        }
+
+        let production = rules.remove_entry(&id).expect("entry should exist").1;
+
+        // Replace each instance of Ref(id) with this
+        for j in reverse
+            .get(&id)
+            .expect(&format!("each id has entry in reverse graph: {}", id))
+            .iter()
+        {
+            let p = rules.get_mut(&j).unwrap();
+            // println!("before {:?}", p);
+
+            foreach_production_mut(p, &mut |sub| {
+                if let Production::Ref(k) = sub {
+                    if *k == id {
+                        *sub = production.clone();
+                    }
+                }
+            });
+
+            // println!("after {:?}\n", p);
+
+            let mut simplified = true;
+            foreach_production(&p, &mut |sub| {
+                if let Production::Ref(..) = sub {
+                    simplified = false;
+                }
+            });
+
+            if simplified {
+                open.push_back(*j);
+            }
+        }
+    }
+
+    let mut rule = rules.remove_entry(&0).unwrap().1;
+    assert!(rules.is_empty());
+
+    rule
+}
+
+fn to_regex(p: &Production) -> Regex {
+    let mut buf = String::from("^");
+    buf.push_str(&to_regex_raw(p));
+    buf.push('$');
+    RegexBuilder::new(&buf)
+        .size_limit(10485760 * 1024) // The default limit is much too small.
+        .build()
+        .unwrap()
+}
+
+fn to_regex_raw(p: &Production) -> String {
+    match p {
+        Production::Char(c) => c.to_string(),
+        Production::Ref(..) => panic!("no refs in final production"),
+        Production::Seq(ref qs) => qs.iter().map(to_regex_raw).collect::<String>(),
+        Production::Or(ref qs) => {
+            let mut buffer: String = "(?:".into();
+
+            for q in qs.iter().map(to_regex_raw).intersperse("|".into()) {
+                buffer.push_str(&q);
+            }
+            buffer.push(')');
+            buffer
         }
     }
 }
@@ -181,147 +300,31 @@ mod test {
     use super::*;
 
     #[test]
+    fn test_to_regex() {
+        assert_eq!(
+            to_regex(&Production::Seq(vec![
+                Production::Char('a'),
+                Production::Char('b'),
+                Production::Char('c')
+            ]))
+            .as_str(),
+            "^abc$"
+        );
+    }
+
+    #[test]
     fn test_plus() {
-        let mut rules = HashMap::new();
-        rules.insert(0, Production::Char('a'));
-
-        let mut p = parser_for_rule(&Production::Plus(0), &rules);
-
-        for input in &["a", "aa", "aaa", "aaaa", "aaaaa", "aaaaaa"] {
-            assert!(matches!(p.parse(*input), Ok(((), ""))));
-        }
-    }
-
-    #[test]
-    fn test_seq_n() {
-        let mut rules = HashMap::new();
-        rules.insert(1, Production::Char('a'));
-        rules.insert(2, Production::Char('b'));
-
-        for input in &["a", "aa", "aaa", "aaaa", "aaaaa", "aaaaaa"] {
-            let len = input.len();
-            let mut p = parser_for_rule(&Production::SeqN(vec![1; len]), &rules);
-
-            println!("input = {:?}", input);
-            assert!(matches!(p.parse(*input), Ok(((), ""))));
-        }
-        for input in &["b", "bb", "bbb", "bbbb", "bbbbb", "bbbbbb"] {
-            let len = input.len();
-            let mut p = parser_for_rule(&Production::SeqN(vec![2; len]), &rules);
-
-            assert!(matches!(p.parse(*input), Ok(((), ""))));
-        }
-    }
-
-    #[test]
-    fn test_or_n() {
-        {
-            let rules = HashMap::new();
-            let rule = Production::OrN(('a'..='z').map(|c| Production::Char(c)).collect());
-
-            for c in 'a'..='z' {
-                let input = {
-                    let mut buf = String::with_capacity(1);
-                    buf.push(c);
-                    buf
-                };
-
-                let mut p = parser_for_rule(&rule, &rules);
-                assert!(matches!(p.parse(input.as_str()), Ok(((), ""))));
-            }
-        }
-
-        {
-            let mut ps = vec![];
-
-            let mut rules = HashMap::new();
-            for c in 'a'..='z' {
-                rules.insert(c as usize, Production::Char(c));
-                ps.push(Production::Seq(c as usize, c as usize));
-            }
-
-            let rule = Production::OrN(ps);
-
-            for c in 'a'..='z' {
-                let input = {
-                    let mut buf = String::with_capacity(2);
-                    buf.push(c);
-                    buf.push(c);
-                    buf
-                };
-                let mut p = parser_for_rule(&rule, &rules);
-
-                assert!(matches!(p.parse(input.as_str()), Ok(((), ""))));
-            }
-        }
-
-        {
-            let mut rules = HashMap::new();
-            rules.insert('a' as usize, Production::Char('a'));
-            rules.insert('b' as usize, Production::Char('b'));
-            rules.insert('z' as usize, Production::Char('z'));
-
-            // aa | ab | bb
-            rules.insert(
-                1,
-                Production::OrN(vec![
-                    Production::Seq('a' as usize, 'a' as usize),
-                    Production::Seq('a' as usize, 'b' as usize),
-                    Production::Seq('b' as usize, 'b' as usize),
+        assert_eq!(
+            plus(&Production::Char('a'), 3),
+            Production::Or(vec![
+                Production::Char('a'),
+                Production::Seq(vec![Production::Char('a'), Production::Char('a')]),
+                Production::Seq(vec![
+                    Production::Char('a'),
+                    Production::Char('a'),
+                    Production::Char('a')
                 ]),
-            );
-
-            rules.insert(0, Production::Plus(1));
-
-            let rule = Production::Seq(0, 'z' as usize);
-
-            for input in &[
-                "aaz", "abz", "bbz", "aaaaz", "aaabz", "aabbz", "abaaz", "ababz", "abbbz", "bbaaz",
-                "bbabz", "bbbbz",
-            ] {
-                let mut p = parser_for_rule(&rule, &rules);
-                assert!(matches!(p.parse(*input), Ok(((), ""))));
-            }
-        }
-
-        {
-            let mut rules = HashMap::new();
-            rules.insert('a' as usize, Production::Char('a'));
-            rules.insert('b' as usize, Production::Char('b'));
-            rules.insert('c' as usize, Production::Char('c'));
-            rules.insert('d' as usize, Production::Char('d'));
-            rules.insert('z' as usize, Production::Char('z'));
-
-            rules.insert(
-                0,
-                Production::OrN(vec![
-                    Production::SeqN(vec!['a' as usize, 'b' as usize]),
-                    Production::SeqN(vec!['a' as usize, 'a' as usize, 'b' as usize, 'b' as usize]),
-                    Production::SeqN(vec![
-                        'a' as usize,
-                        'a' as usize,
-                        'a' as usize,
-                        'b' as usize,
-                        'b' as usize,
-                        'b' as usize,
-                    ]),
-                ]),
-            );
-
-            rules.insert(
-                1,
-                Production::Or(
-                    Box::new(Production::Ref('c' as usize)),
-                    Box::new(Production::Ref('d' as usize)),
-                ),
-            );
-
-            let rule = Production::SeqN(vec![0, 1, 'z' as usize]);
-
-            for input in &["abcz", "abdz"] {
-                let mut p = parser_for_rule(&rule, &rules);
-                assert!(matches!(p.parse(*input), Ok(((), ""))));
-            }
-        }
+            ])
+        );
     }
 }
