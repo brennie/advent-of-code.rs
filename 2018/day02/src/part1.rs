@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use day02::{read_ids, Error, Result};
+use day02_2018::{read_ids, Error, Result};
 
 #[derive(Debug, Default)]
 struct Freq {

@@ -1,6 +1,6 @@
 use std::process::exit;
 
-use day03::{compute_min_dimensions, read_claims, Rect};
+use day03_2018::{compute_min_dimensions, read_claims, Rect};
 
 fn compute_overlap(claims: Vec<Rect>) -> usize {
     let (width, height) = compute_min_dimensions(&claims);

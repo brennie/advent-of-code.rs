@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::process::exit;
 
-use day03::{read_claims, Rect};
+use day03_2018::{read_claims, Rect};
 
 fn intersects(a: &Rect, b: &Rect) -> bool {
     a.left < b.right() && a.right() > b.left && a.top < b.bottom() && a.bottom() > b.top

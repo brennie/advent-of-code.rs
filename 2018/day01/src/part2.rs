@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::process::exit;
 
-use day01::{read_offsets, Result};
+use day01_2018::{read_offsets, Result};
 
 fn run() -> Result<i32> {
     let offsets = read_offsets()?;
